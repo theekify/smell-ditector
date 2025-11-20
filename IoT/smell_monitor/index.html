@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreshGuard | Smart Fridge Monitor</title>
+    <!-- Using Firebase 8.x for compatibility -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Your existing CSS styles remain the same */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #0071E3;
+            --primary-dark: #0056B3;
+            --accent: #30B0C0;
+            --accent-light: #5AC8FA;
+            --dark-bg: #0F1419;
+            --card-dark: #1A1F2E;
+            --text-primary: #FFFFFF;
+            --text-secondary: #B0B5C0;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --danger: #EF4444;
+            --glass-light: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(0, 113, 227, 0.15);
+        }
+
+        [data-theme="light"] {
+            --dark-bg: #FAFBFC;
+            --card-dark: #FFFFFF;
+            --text-primary: #0F1419;
+            --text-secondary: #6B7280;
+            --glass-light: rgba(0, 113, 227, 0.05);
+            --glass-border: rgba(0, 113, 227, 0.2);
+        }
+
+        /* ... (all your existing CSS styles remain exactly the same) ... */
+
+        /* Connection status indicator */
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        .connection-dot.disconnected {
+            background: var(--danger);
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        /* Responsive design for mobile */
+        @media (max-width: 768px) {
+            .container {
+                padding: 50px 20px;
+            }
+            .header {
+                margin-bottom: 60px;
+                padding: 24px 20px;
+                flex-direction: column;
+                gap: 20px;
+            }
+            .logo {
+                font-size: 24px;
+            }
+            .status-message {
+                font-size: 36px;
+            }
+            .status-card {
+                padding: 40px 24px;
+                margin-bottom: 50px;
+            }
+            .sensor-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+                margin-bottom: 50px;
+            }
+            .sensor-card {
+                padding: 28px 20px;
+            }
+            .demo-controls {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            .threshold-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            .btn {
+                width: 100%;
+                padding: 14px 20px;
+            }
+            .section-title {
+                font-size: 24px;
+            }
+            .demo-section,
+            .admin-panel {
+                padding: 40px 24px;
+                margin-bottom: 50px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">
+                <i class="fas fa-snowflake"></i>
+                FreshGuard
+            </div>
+            <div class="controls">
+                <div class="connection-status">
+                    <div class="connection-dot" id="connectionDot"></div>
+                    <span id="connectionStatus">Connecting to Firebase...</span>
+                </div>
+                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
+                    <i class="fas fa-moon" id="themeIcon"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Status Card -->
+        <div class="status-card" id="statusCard">
+            <div class="status-header">
+                <div class="status-title">System Status</div>
+                <div class="status-badge" id="statusBadge">Normal</div>
+            </div>
+            <div class="status-message" id="statusMessage">All Systems Operational</div>
+            <div class="demo-indicator" id="demoIndicator" style="display: none;">
+                <i class="fas fa-flask"></i>
+                Demo Mode Active — Using Simulated Data
+            </div>
+            <div class="connection-status">
+                <div class="connection-dot" id="dataConnectionDot"></div>
+                <span id="dataStatus">Waiting for sensor data...</span>
+            </div>
+        </div>
+
+        <!-- Sensor Grid -->
+        <div class="sensor-grid">
+            <div class="sensor-card">
+                <div class="sensor-header">
+                    <div class="sensor-icon">
+                        <i class="fas fa-wind"></i>
+                    </div>
+                    <div class="sensor-info">
+                        <h3>Air Quality</h3>
+                        <div class="sensor-value" id="mq135Value">—</div>
+                        <div class="sensor-threshold">
+                            <i class="fas fa-circle"></i>
+                            Threshold: <span id="mq135Threshold">—</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sensor-card">
+                <div class="sensor-header">
+                    <div class="sensor-icon">
+                        <i class="fas fa-fire"></i>
+                    </div>
+                    <div class="sensor-info">
+                        <h3>Methane Level</h3>
+                        <div class="sensor-value" id="mq4Value">—</div>
+                        <div class="sensor-threshold">
+                            <i class="fas fa-circle"></i>
+                            Threshold: <span id="mq4Threshold">—</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sensor-card">
+                <div class="sensor-header">
+                    <div class="sensor-icon">
+                        <i class="fas fa-thermometer-half"></i>
+                    </div>
+                    <div class="sensor-info">
+                        <h3>Temperature</h3>
+                        <div class="sensor-value" id="tempValue">—°C</div>
+                        <div class="sensor-threshold">
+                            <i class="fas fa-circle"></i>
+                            Max: <span id="tempThreshold">—</span>°C
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sensor-card">
+                <div class="sensor-header">
+                    <div class="sensor-icon">
+                        <i class="fas fa-droplet"></i>
+                    </div>
+                    <div class="sensor-info">
+                        <h3>Humidity</h3>
+                        <div class="sensor-value" id="humValue">—%</div>
+                        <div class="sensor-threshold">
+                            <i class="fas fa-circle"></i>
+                            Max: <span id="humThreshold">—</span>%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Demo Controls -->
+        <div class="demo-section">
+            <div class="section-title">
+                <i class="fas fa-flask-vial"></i>
+                Demo Mode
+            </div>
+            <p class="demo-description">
+                Use these controls to simulate different scenarios for your demonstration.
+            </p>
+
+            <div class="demo-controls">
+                <button class="btn btn-outline" onclick="toggleDemoMode()" id="demoBtn">
+                    <i class="fas fa-plug"></i>
+                    Enable Demo
+                </button>
+
+                <button class="btn btn-warning" onclick="simulateSpoilage()">
+                    <i class="fas fa-triangle-exclamation"></i>
+                    Simulate Spoilage
+                </button>
+
+                <button class="btn btn-success" onclick="simulateNormal()">
+                    <i class="fas fa-check"></i>
+                    Normal State
+                </button>
+
+                <button class="btn btn-danger" onclick="triggerAlert()">
+                    <i class="fas fa-bell"></i>
+                    Test Alert
+                </button>
+            </div>
+        </div>
+
+        <!-- Admin Panel -->
+        <div class="admin-panel">
+            <div class="section-title">
+                <i class="fas fa-sliders"></i>
+                Admin Settings
+            </div>
+
+            <div class="threshold-grid">
+                <div class="threshold-item">
+                    <label>MQ-135 Threshold</label>
+                    <input type="number" id="mq135_thresh" class="threshold-input" placeholder="2000">
+                    <button class="btn btn-primary threshold-update" onclick="updateThreshold('mq135_thresh', 'mq135')">
+                        <i class="fas fa-save"></i> Update
+                    </button>
+                </div>
+
+                <div class="threshold-item">
+                    <label>MQ-4 Threshold</label>
+                    <input type="number" id="mq4_thresh" class="threshold-input" placeholder="1500">
+                    <button class="btn btn-primary threshold-update" onclick="updateThreshold('mq4_thresh', 'mq4')">
+                        <i class="fas fa-save"></i> Update
+                    </button>
+                </div>
+
+                <div class="threshold-item">
+                    <label>Max Temperature (°C)</label>
+                    <input type="number" step="0.1" id="temp_thresh" class="threshold-input" placeholder="8.0">
+                    <button class="btn btn-primary threshold-update" onclick="updateThreshold('temp_thresh', 'temperature')">
+                        <i class="fas fa-save"></i> Update
+                    </button>
+                </div>
+
+                <div class="threshold-item">
+                    <label>Max Humidity (%)</label>
+                    <input type="number" step="0.1" id="hum_thresh" class="threshold-input" placeholder="80.0">
+                    <button class="btn btn-primary threshold-update" onclick="updateThreshold('hum_thresh', 'humidity')">
+                        <i class="fas fa-save"></i> Update
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBuEqwAyCuxEtLBEWIlDexuGtdqsbmXZZY",
+            authDomain: "smartfridgemonitor.firebaseapp.com",
+            databaseURL: "https://smartfridgemonitor-default-rtdb.firebaseio.com",
+            projectId: "smartfridgemonitor",
+            storageBucket: "smartfridgemonitor.firebasestorage.app",
+            messagingSenderId: "380964470517",
+            appId: "1:380964470517:web:b7fb641606ddd9d14e8fbc",
+            measurementId: "G-K45D98CR7H"
+        };
+
+        // Initialize Firebase (using Firebase 8.x syntax)
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Connection status tracking
+        let isConnected = false;
+        let hasData = false;
+        let lastDataTimestamp = null;
+
+        // Theme Management
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            
+            const themeIcon = document.getElementById('themeIcon');
+            themeIcon.className = newTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+        }
+
+        // Initialize theme
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.getElementById('themeIcon').className = savedTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+
+        // Update connection status
+        function updateConnectionStatus(connected, dataReceived = false) {
+            const connectionDot = document.getElementById('connectionDot');
+            const connectionStatus = document.getElementById('connectionStatus');
+            const dataConnectionDot = document.getElementById('dataConnectionDot');
+            const dataStatus = document.getElementById('dataStatus');
+            
+            if (connected) {
+                connectionDot.style.background = 'var(--success)';
+                connectionStatus.textContent = 'Connected to Firebase';
+                connectionDot.classList.remove('disconnected');
+                
+                if (dataReceived) {
+                    dataConnectionDot.style.background = 'var(--success)';
+                    const timeAgo = lastDataTimestamp ? 
+                        `Last update: ${formatTimeAgo(lastDataTimestamp)}` : 
+                        'Receiving live data';
+                    dataStatus.textContent = timeAgo;
+                    dataConnectionDot.classList.remove('disconnected');
+                    hasData = true;
+                } else {
+                    dataConnectionDot.style.background = 'var(--warning)';
+                    dataStatus.textContent = 'Connected, waiting for data';
+                    dataConnectionDot.classList.remove('disconnected');
+                }
+            } else {
+                connectionDot.style.background = 'var(--danger)';
+                connectionStatus.textContent = 'Disconnected from Firebase';
+                connectionDot.classList.add('disconnected');
+                
+                dataConnectionDot.style.background = 'var(--danger)';
+                dataStatus.textContent = 'No data connection';
+                dataConnectionDot.classList.add('disconnected');
+            }
+            
+            isConnected = connected;
+        }
+
+        // Format time ago
+        function formatTimeAgo(timestamp) {
+            const now = new Date().getTime();
+            const diff = now - timestamp;
+            const seconds = Math.floor(diff / 1000);
+            const minutes = Math.floor(seconds / 60);
+            
+            if (seconds < 60) return 'Just now';
+            if (minutes < 60) return `${minutes}m ago`;
+            return `${Math.floor(minutes / 60)}h ago`;
+        }
+
+        // Firebase Data Listeners
+        function setupFirebaseListeners() {
+            // Listen to all data changes
+            database.ref('/').on('value', (snapshot) => {
+                const data = snapshot.val();
+                lastDataTimestamp = new Date().getTime();
+                
+                if (data) {
+                    updateDashboard(data);
+                    updateConnectionStatus(true, true);
+                } else {
+                    updateConnectionStatus(true, false);
+                }
+            }, (error) => {
+                console.error('Firebase connection error:', error);
+                updateConnectionStatus(false);
+            });
+
+            // Listen to individual sensor values for real-time updates
+            database.ref('sensors').on('value', (snapshot) => {
+                const sensors = snapshot.val();
+                if (sensors) {
+                    updateSensorValues(sensors);
+                    lastDataTimestamp = new Date().getTime();
+                    updateConnectionStatus(true, true);
+                }
+            });
+
+            // Listen to thresholds
+            database.ref('thresholds').on('value', (snapshot) => {
+                const thresholds = snapshot.val();
+                if (thresholds) {
+                    updateThresholdValues(thresholds);
+                }
+            });
+
+            // Listen to status
+            database.ref('status').on('value', (snapshot) => {
+                const status = snapshot.val();
+                if (status) {
+                    updateStatus(status);
+                }
+            });
+
+            // Listen to demo mode
+            database.ref('demo').on('value', (snapshot) => {
+                const demo = snapshot.val();
+                if (demo) {
+                    updateDemoMode(demo);
+                }
+            });
+
+            // Check connection state
+            database.ref('.info/connected').on('value', (snapshot) => {
+                if (snapshot.val() === true) {
+                    updateConnectionStatus(true, hasData);
+                } else {
+                    updateConnectionStatus(false);
+                }
+            });
+        }
+
+        // Update sensor values
+        function updateSensorValues(sensors) {
+            if (sensors.mq135 !== undefined) {
+                document.getElementById('mq135Value').textContent = sensors.mq135;
+            }
+            if (sensors.mq4 !== undefined) {
+                document.getElementById('mq4Value').textContent = sensors.mq4;
+            }
+            if (sensors.temperature !== undefined) {
+                document.getElementById('tempValue').textContent = sensors.temperature.toFixed(1) + '°C';
+            }
+            if (sensors.humidity !== undefined) {
+                document.getElementById('humValue').textContent = sensors.humidity.toFixed(1) + '%';
+            }
+        }
+
+        // Update threshold values
+        function updateThresholdValues(thresholds) {
+            if (thresholds.mq135 !== undefined) {
+                document.getElementById('mq135Threshold').textContent = thresholds.mq135;
+                document.getElementById('mq135_thresh').placeholder = thresholds.mq135;
+            }
+            if (thresholds.mq4 !== undefined) {
+                document.getElementById('mq4Threshold').textContent = thresholds.mq4;
+                document.getElementById('mq4_thresh').placeholder = thresholds.mq4;
+            }
+            if (thresholds.temperature !== undefined) {
+                document.getElementById('tempThreshold').textContent = thresholds.temperature;
+                document.getElementById('temp_thresh').placeholder = thresholds.temperature;
+            }
+            if (thresholds.humidity !== undefined) {
+                document.getElementById('humThreshold').textContent = thresholds.humidity;
+                document.getElementById('hum_thresh').placeholder = thresholds.humidity;
+            }
+        }
+
+        // Update status
+        function updateStatus(status) {
+            const statusCard = document.getElementById('statusCard');
+            const statusBadge = document.getElementById('statusBadge');
+            const statusMessage = document.getElementById('statusMessage');
+
+            if (status.alert) {
+                statusBadge.textContent = 'Alert';
+                statusBadge.className = 'status-badge alert';
+                statusMessage.textContent = 'Spoilage Detected!';
+                statusMessage.style.color = 'var(--danger)';
+                statusCard.classList.add('alert');
+            } else {
+                statusBadge.textContent = 'Normal';
+                statusBadge.className = 'status-badge';
+                statusMessage.textContent = 'All Systems Operational';
+                statusMessage.style.color = 'var(--text-primary)';
+                statusCard.classList.remove('alert');
+            }
+        }
+
+        // Update demo mode
+        function updateDemoMode(demo) {
+            const demoIndicator = document.getElementById('demoIndicator');
+            const demoBtn = document.getElementById('demoBtn');
+
+            if (demo.demoMode) {
+                demoIndicator.style.display = 'flex';
+                demoBtn.innerHTML = '<i class="fas fa-stop"></i> Disable Demo';
+            } else {
+                demoIndicator.style.display = 'none';
+                demoBtn.innerHTML = '<i class="fas fa-plug"></i> Enable Demo';
+            }
+        }
+
+        // Main dashboard update function
+        function updateDashboard(data) {
+            const sensors = data.sensors || {};
+            const thresholds = data.thresholds || {};
+            const status = data.status || {};
+            const demo = data.demo || {};
+
+            updateSensorValues(sensors);
+            updateThresholdValues(thresholds);
+            updateStatus(status);
+            updateDemoMode(demo);
+        }
+
+        // Demo Controls
+        function toggleDemoMode() {
+            const currentState = document.getElementById('demoBtn').innerHTML.includes('Enable');
+            database.ref('demo/demoMode').set(currentState);
+        }
+
+        function simulateSpoilage() {
+            database.ref('demo').update({
+                fake_mq135: 2800,
+                fake_mq4: 2200,
+                fake_temp: 9.5,
+                fake_hum: 85.0,
+                manualAlert: true
+            });
+        }
+
+        function simulateNormal() {
+            database.ref('demo').update({
+                fake_mq135: 800,
+                fake_mq4: 600,
+                fake_temp: 4.5,
+                fake_hum: 65.0,
+                manualAlert: false
+            });
+        }
+
+        function triggerAlert() {
+            database.ref('demo/manualAlert').set(true);
+            setTimeout(() => {
+                database.ref('demo/manualAlert').set(false);
+            }, 3000);
+        }
+
+        function updateThreshold(inputId, field) {
+            const value = document.getElementById(inputId).value;
+            if (value) {
+                const numericValue = field.includes('temperature') || field.includes('humidity') ? 
+                    parseFloat(value) : parseInt(value);
+                
+                database.ref('thresholds/' + field).set(numericValue);
+                
+                const btn = event.target;
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Updated';
+                btn.style.opacity = '0.7';
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                    btn.style.opacity = '1';
+                }, 2000);
+            }
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('FreshGuard Dashboard Loaded');
+            setupFirebaseListeners();
+            updateConnectionStatus(false);
+            
+            // Add some visual feedback for data updates
+            const sensorValues = document.querySelectorAll('.sensor-value');
+            sensorValues.forEach(value => {
+                value.addEventListener('DOMSubtreeModified', function() {
+                    this.style.transform = 'scale(1.1)';
+                    setTimeout(() => {
+                        this.style.transform = 'scale(1)';
+                    }, 300);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
