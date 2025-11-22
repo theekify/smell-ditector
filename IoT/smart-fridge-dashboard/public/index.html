@@ -373,6 +373,7 @@
         .history-table {
             width: 100%;
             border-collapse: collapse;
+            margin-bottom: 30px;
         }
 
         .history-table th,
@@ -415,6 +416,76 @@
         .alert-badge.alert {
             background: rgba(239, 68, 68, 0.1);
             color: var(--danger);
+        }
+
+        /* Alert History Chart */
+        .alert-history-chart {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-light);
+            margin-top: 30px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .chart-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chart-action-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border-light);
+            background: var(--bg);
+            color: var(--text-secondary);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+        .chart-action-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .chart-action-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .pie-chart-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+            position: relative;
+        }
+
+        .pie-stats {
+            position: absolute;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .pie-total {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .pie-label {
+            font-size: 14px;
+            color: var(--text-secondary);
         }
 
         /* Controls Section */
@@ -579,6 +650,26 @@
             .sensor-value {
                 font-size: 24px;
             }
+
+            .chart-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+            .chart-actions {
+                align-self: stretch;
+                justify-content: space-between;
+            }
+
+            .chart-action-btn {
+                flex: 1;
+                text-align: center;
+            }
+
+            .pie-chart-container {
+                height: 250px;
+            }
         }
     </style>
 </head>
@@ -729,6 +820,28 @@
                     </tr>
                 </tbody>
             </table>
+
+            <!-- Alert History Chart -->
+            <div class="alert-history-chart">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <i class="fas fa-chart-pie"></i>
+                        Alert Distribution
+                    </div>
+                    <div class="chart-actions">
+                        <button class="chart-action-btn active" onclick="changeChartView('all')">All Time</button>
+                        <button class="chart-action-btn" onclick="changeChartView('today')">Today</button>
+                        <button class="chart-action-btn" onclick="changeChartView('week')">This Week</button>
+                    </div>
+                </div>
+                <div class="pie-chart-container">
+                    <canvas id="alertHistoryChart"></canvas>
+                    <div class="pie-stats" id="pieStats">
+                        <div class="pie-total" id="pieTotal">0</div>
+                        <div class="pie-label">Total Alerts</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Demo Controls -->
@@ -811,14 +924,27 @@
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        let freshnessChart, tempHumChart;
+        let freshnessChart, tempHumChart, alertHistoryChart;
         let sensorHistory = [];
+        let alertHistory = [];
         let lastUpdateTime = 0;
         const MAX_HISTORY = 100;
+        let currentChartView = 'all';
+
+        // Alert counters for different time periods
+        let alertCounters = {
+            all: { spoiled: 0, fresh: 0 },
+            today: { spoiled: 0, fresh: 0 },
+            week: { spoiled: 0, fresh: 0 }
+        };
+
+        // Track today's date for resetting daily counters
+        let currentDay = new Date().toDateString();
 
         function initializeCharts() {
             const freshnessCtx = document.getElementById('freshnessChart').getContext('2d');
             const tempHumCtx = document.getElementById('tempHumChart').getContext('2d');
+            const alertHistoryCtx = document.getElementById('alertHistoryChart').getContext('2d');
 
             freshnessChart = new Chart(freshnessCtx, {
                 type: 'line',
@@ -949,6 +1075,54 @@
                     }
                 }
             });
+
+            alertHistoryChart = new Chart(alertHistoryCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Fresh Food', 'Spoiled Food'],
+                    datasets: [{
+                        data: [0, 0],
+                        backgroundColor: [
+                            '#10B981',
+                            '#EF4444'
+                        ],
+                        borderColor: [
+                            '#059669',
+                            '#DC2626'
+                        ],
+                        borderWidth: 2,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '60%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#6B7280',
+                                font: { size: 13, weight: '500' },
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                padding: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         function updateCharts(sensorData, timestamp) {
@@ -992,6 +1166,50 @@
             }
         }
 
+        function updateAlertHistoryChart(isAlert = false) {
+            const now = new Date();
+            const today = now.toDateString();
+            
+            // Reset daily counters if it's a new day
+            if (today !== currentDay) {
+                alertCounters.today.spoiled = 0;
+                alertCounters.today.fresh = 0;
+                currentDay = today;
+                
+                // Reset weekly counters on Monday (start of week)
+                if (now.getDay() === 1) {
+                    alertCounters.week.spoiled = 0;
+                    alertCounters.week.fresh = 0;
+                }
+            }
+            
+            // Update counters based on alert status
+            if (isAlert) {
+                alertCounters.all.spoiled++;
+                alertCounters.today.spoiled++;
+                alertCounters.week.spoiled++;
+            } else {
+                alertCounters.all.fresh++;
+                alertCounters.today.fresh++;
+                alertCounters.week.fresh++;
+            }
+            
+            // Update the pie chart
+            updatePieChart();
+        }
+
+        function updatePieChart() {
+            const data = alertCounters[currentChartView];
+            const total = data.spoiled + data.fresh;
+            
+            // Update pie chart data
+            alertHistoryChart.data.datasets[0].data = [data.fresh, data.spoiled];
+            alertHistoryChart.update();
+            
+            // Update center text
+            document.getElementById('pieTotal').textContent = total;
+        }
+
         function updateHistoryTable() {
             const tbody = document.getElementById('historyTableBody');
             tbody.innerHTML = '';
@@ -1018,6 +1236,14 @@
         function changeTimeRange(range) {
             document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
             event.target.classList.add('active');
+        }
+
+        function changeChartView(view) {
+            document.querySelectorAll('.chart-action-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            currentChartView = view;
+            updatePieChart();
         }
 
         function updateConnectionStatus(connected) {
@@ -1089,11 +1315,17 @@
                         if (sensorHistory.length > 0) {
                             sensorHistory[0].alert = true;
                         }
+                        
+                        // Update alert history chart with spoilage event
+                        updateAlertHistoryChart(true);
                     } else {
                         statusCard.classList.remove('alert');
                         statusBadge.classList.remove('alert');
                         statusBadge.textContent = 'Food Fresh';
                         statusMessage.textContent = 'All Systems Operational';
+                        
+                        // Update alert history chart with fresh status
+                        updateAlertHistoryChart(false);
                     }
                     
                     updateHistoryTable();
