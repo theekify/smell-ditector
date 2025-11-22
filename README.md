@@ -55,5 +55,3 @@ A **buzzer** and **OLED display** provide local alerts.
 * Manually adjust thresholds
 * Used for demo: simulate spoiled food by increasing sensitivity
 
-✅ code blocks
-and I can format those perfectly too.
