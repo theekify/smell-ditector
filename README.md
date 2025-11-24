@@ -24,7 +24,7 @@ A **buzzer** and **OLED display** provide local alerts.
 | MQ-4                     | Detects methane & spoilage gases     |
 | DHT22                    | Temperature & humidity               |
 | OLED Display (I2C)       | Local display                        |
-| Active Buzzer            | Alert system                         |
+| Passive Buzzer           | Alert system                         |
 | Jumper Wires             | Connections                          |
 | Breadboard               | Testing                              |
 | 5V Power                 | USB/Adapter                          |
