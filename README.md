@@ -12,7 +12,7 @@ A **buzzer** and **OLED display** provide local alerts.
 * OLED screen shows real-time readings
 * Buzzer alarm for critical smell levels
 * Web dashboard for live data
-* Admin panel to change smell thresholds manually
+* Admin panel to change smell thresholds manually 
 * Wi-Fi communication between ESP32 → Web App
 
 ## 🛒 Hardware Components
