@@ -251,6 +251,7 @@ void updateFirebase() {
     Serial.println("MQ4 updated successfully");
   } else {
     Serial.print("MQ4 update failed: ");
+
     Serial.println(fbdo.errorReason().c_str());
   }
 
@@ -276,6 +277,23 @@ void updateFirebase() {
     Serial.print("Timestamp update failed: ");
     Serial.println(fbdo.errorReason().c_str());
   }
+
+  // Update alert status
+  if (Firebase.RTDB.setBool(&fbdo, "/status/alert", alert_status)) {
+    Serial.println("Alert status updated");
+  } else {
+    Serial.print("Alert status update failed: ");
+    Serial.println(fbdo.errorReason().c_str());
+  }
+
+  // Update online status
+  if (Firebase.RTDB.setBool(&fbdo, "/status/online", true)) {
+    Serial.println("Online status updated");
+  } else {
+    Serial.print("Online status update failed: ");
+    Serial.println(fbdo.errorReason().c_str());
+  }
+}
 
 void updateDisplay() {
   display.clearDisplay();
