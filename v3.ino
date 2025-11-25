@@ -326,4 +326,14 @@ void updateDisplay() {
   display.print(millis() / 1000);
   display.println("s");
   
+    // Alert status
+  display.setTextSize(2);
+  if (alert_status) {
+    display.println(" ALERT!");
+  } else {
+    display.println(" NORMAL");
+  }
+  
+  display.display();
+  
 }
