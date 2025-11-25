@@ -215,7 +215,18 @@ void readSensors() {
   Serial.print("Humidity: "); Serial.print(humidity); Serial.println("%");
 }
 
+void checkThresholds() {
+  alert_status = (mq135_value > mq135_threshold) ||
+                 (mq4_value > mq4_threshold) ||
+                 (temperature > temp_threshold) ||
+                 (humidity > hum_threshold);
 
+  digitalWrite(BUZZER_PIN, alert_status ? HIGH : LOW);
+  
+  if (alert_status) {
+    Serial.println("ALERT! Threshold exceeded!");
+  }
+}
 
 void updateFirebase() {
   Serial.println("--- Updating Firebase ---");
@@ -240,6 +251,7 @@ void updateFirebase() {
     Serial.println("MQ4 updated successfully");
   } else {
     Serial.print("MQ4 update failed: ");
+
     Serial.println(fbdo.errorReason().c_str());
   }
 
@@ -314,7 +326,7 @@ void updateDisplay() {
   display.print(millis() / 1000);
   display.println("s");
   
-  // Alert status
+    // Alert status
   display.setTextSize(2);
   if (alert_status) {
     display.println(" ALERT!");
@@ -323,4 +335,5 @@ void updateDisplay() {
   }
   
   display.display();
+  
 }
