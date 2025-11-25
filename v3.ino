@@ -295,32 +295,7 @@ void updateFirebase() {
   }
 }
 
-void updateDisplay() {
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setCursor(0, 0);
-  
-  display.print("MQ135: "); display.println(mq135_value);
-  display.print("MQ4: "); display.println(mq4_value);
-  display.print("Temp: "); 
-  if (temperature == -999) {
-    display.println("ERR");
-  } else {
-    display.print(temperature, 1); display.println("C");
-  }
-  display.print("Hum: "); 
-  if (humidity == -999) {
-    display.println("ERR");
-  } else {
-    display.print(humidity, 1); display.println("%");
-  }
-  
-  display.print("WiFi: ");
-  display.println(WiFi.status() == WL_CONNECTED ? "OK" : "OFF");
-  
-  display.print("Firebase: ");
-  display.println(Firebase.ready() ? "OK" : "OFF");
-  
+
   // Show relative time (Time feature kept)
   display.print("Time: ");
   display.print(millis() / 1000);
